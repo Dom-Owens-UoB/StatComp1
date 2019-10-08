@@ -1,0 +1,79 @@
+---
+title: "Packages"
+author: "Dom Owens"
+date: "08/10/2019"
+output: pdf_document
+---
+
+ # Projects for organising code
+ 
+ R has inbuilt functionality for self-contained projects. These are simply directories of files. One standard structure goes as follows:
+ 
+ - "R" folder containing scripts
+ - "README.Rmd" with a plain-language description of the project
+ - "data" folder with data, perhaps split into "raw" and "processed" 
+ - "doc" folder with documentation for external use
+ - "output" folder with reproducible results of applying functions to data
+ 
+ Perhaps other folders can be included, such as "src/" for C++ code.
+
+Code can be loaded from external sources using the "source" or "library" commands  
+```{r}
+#source("x.Rmd")
+library(ggplot2)
+```
+ 
+# Version control using git and GitHub
+
+Version control software tracks changes in projects, allowing multiple users to work on the same files or previous versions to be recovered.
+
+
+git is a useful tool for this, and is integrated into RStudio. "Staging" refers to submitting files to the current branch, and can be performed via the git tab in the top right panel. When changes are made, a "commit" should be made; it is good practice to use a single commit for changes to specific parts - this allows easy reversion and the ability to describe changes in plain language. A "branch" can be added to change code without affecting the master version of the code, and then later merged. Files to be ignored for staging should be specified in the ".gitignore" file.
+
+GitHub is a useful platform for displaying and sharing projects. Other users can fork a public repository, edit it and submit a pull request.
+
+# R Packages
+
+Packages are collections of functions and data. These have a description and license attached. Documentation can be generated automatically with "Build -> Configure Build Tools... -> Generate documentation with Roxygen" to describe functionality.
+
+```{r}
+install.packages("/home/do16317/Documents/Stat Comp 1/Packages/Example", repos = NULL, type = "source") #install Example package from local source
+Example::sum(1:10) # use sum function from package
+```
+
+See https://github.com/Dom-Owens-UoB/COMPASS for a managed git repository including an installable version of the Example package.
+
+For stability purposes, testing can be applied to package functions. We do this by providing criteria which the functions must meet, in the form of a test suite. The "testthat" package permits this with tests of the form
+```{r}
+library(testthat)
+test_that("sumtest", {
+  expect_equal(Example::sum(1:10), 55)
+})
+
+```
+
+Sometimes untested code can contain bugs and errors. Automated tools such as "covr" can be used to check the coverage of the code, reporting which lines have or have not run. We use the command
+```{r}
+#covr::report()
+```
+
+# Testing with Travis
+
+Packages available on gitub can be tested with travis-ci.org. Continuous integration (CI) allows pull requests to trigger tests, so the owner of the main branch can ensure the new code is working as intended.
+A ".travis.yml" file should be added to the repository of the R package to allow Travis access.
+The following code will run tests from "testthat":
+```{}
+language: r
+dist: xenial
+cache: packages
+branches:
+  only:
+    - master
+
+r_github_packages:
+  - r-lib/covr
+
+after_success:
+  - Rscript -e 'covr::codecov()'
+```
+
