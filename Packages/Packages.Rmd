@@ -5,7 +5,7 @@ date: "08/10/2019"
 output: pdf_document
 ---
 
- # Projects for organising code
+# Projects for organising code
  
  R has inbuilt functionality for self-contained projects. These are simply directories of files. One standard structure goes as follows:
  
@@ -41,7 +41,7 @@ install.packages("/home/do16317/Documents/Stat Comp 1/Packages/Example", repos =
 Example::sum(1:10) # use sum function from package
 ```
 
-See https://github.com/Dom-Owens-UoB/COMPASS for a managed git repository including an installable version of the Example package.
+See https://github.com/Dom-Owens-UoB/StatsComp1 for a managed git repository including an installable version of the Example package.
 
 For stability purposes, testing can be applied to package functions. We do this by providing criteria which the functions must meet, in the form of a test suite. The "testthat" package permits this with tests of the form
 ```{r}
@@ -77,3 +77,9 @@ after_success:
   - Rscript -e 'covr::codecov()'
 ```
 
+
+# Hosting pages with GitHub pages
+
+Travis can be used to sync web pages to GitHub.
+
+https://dom-owens-uob.github.io/StatsComp1/
