@@ -36,6 +36,27 @@ GitHub is a useful platform for displaying and sharing projects. Other users can
 
 Packages are collections of functions and data. These have a description and license attached. Documentation can be generated automatically with "Build -> Configure Build Tools... -> Generate documentation with Roxygen" to describe functionality.
 
+Here we see the contents of the Example package, which is a function complete with Roxygen documentation:
+```{r}
+#' Title
+#' Example package
+#' @param x
+#'
+#' @return
+#' SUms entries of vector
+#' @export
+#'sum
+#' @examples
+sum <- function(x) {
+  s <-0
+  for (i in 1:length(x)) {
+    s <- s + x[i]
+  }
+  s
+}
+```
+
+And here we install and use the package:
 ```{r}
 install.packages("/home/do16317/Documents/Stat Comp 1/Packages/Example", repos = NULL, type = "source") #install Example package from local source
 Example::sum(1:10) # use sum function from package

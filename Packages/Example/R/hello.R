@@ -10,6 +10,15 @@
 #   Check Package:             'Ctrl + Shift + E'
 #   Test Package:              'Ctrl + Shift + T'
 
+#' Title
+#' Example package
+#' @param x
+#'
+#' @return
+#' SUms entries of vector
+#' @export
+#'sum
+#' @examples
 sum <- function(x) {
   s <-0
   for (i in 1:length(x)) {
