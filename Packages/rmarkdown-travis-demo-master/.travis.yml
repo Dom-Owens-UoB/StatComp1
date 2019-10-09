@@ -17,4 +17,4 @@ deploy:
     on:
         branch: master
     local_dir: public
-    target_branch: gh-pagesW
+    target_branch: gh-pages
