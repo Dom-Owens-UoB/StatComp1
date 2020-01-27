@@ -1,0 +1,189 @@
+---
+title: "Dense and Sparse Matrices"
+author: "Dom Owens"
+date: "12/11/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Dense Matrices
+
+**Matrices** are 2-dimensional data structures. In R, entries are specified by column by default. Names can be reassigned without changing values.
+
+```{r}
+x <- matrix(1:6, 2, 3) #2 by 3 matrix
+x1 <- matrix(1:6, 3, 2, dimnames = list(c("X","Y","Z"), c("A","B"))) #give names to rows and columns 
+x
+x1
+```
+```{r}
+rownames(x1) <- c("R1","R2","R3") #add row names
+x1
+```
+
+We can preserve matrix dimensions when selecting rows with `drop=F`. Note that names are maintained.
+```{r}
+x1[1,,drop=F] #select row 1
+```
+
+
+**Arrays** are higher-dimensional data structures.
+```{r}
+y <- array(1:8, c(2,2,2)) #3D data object
+y #prints as transects
+```
+
+## Linear Systems
+
+Matrix operations are useful for solving linear systems of the form $Ax=b$. Multiple approaches are available to do this.
+
+We can try this on **Hilbert matrices**; these are close to singular, so are hard to invert.
+
+`solve(A) %*% b` inverts $A$ then multiplies by $b$.
+
+Alternatively, we use `solve(A,b)`.
+
+```{r}
+set.seed(123)
+library(Matrix)
+n <- 9
+A <- as.matrix(Hilbert(n)) #generate Hilbert matrix
+x <- matrix(runif(n), n, 1) #randomise x
+b <- A%*%x # compute b
+x1 <- solve(A) %*% b #method 1
+x2 <- solve(A,b) #method 2
+norm(x-x1, type = "1") # find numerical errors
+norm(x - x2 ,type = "1")
+```
+
+Clearly, the latter outperforms the former in terms of accuracy.
+
+
+## Numerical Stability and Precision
+
+Why has this happened? We should examine the computation underlying these divergences.
+
+In `R`, floating point numbers are stored as *double precision* numbers. 64 bits store a representation of the number: the **sign** in 1 bit, the **exponent** (i.e. magnitude) in 11 bits, and **precision** in 52 bits.
+Hence have the largest number available:
+```{r}
+2^1023 + 2^1022.9999999999999 #greatest number representable by R
+2^1024 #not representable
+```
+
+With small values, we can expect approximation errors.
+```{r}
+1 + 1e-15 #not equal to 1
+print(1 + 1e-15, digits=22)
+```
+
+The operator `==`, which checks for equality, struggles for floating point digits.
+```{r}
+0.1 + 0.2 -0.3 == 0 #Should return TRUE
+```
+
+From the above, we conclude that we should use `solve(A,b)` to minimise errors.
+
+
+## Eigenvalues
+
+`eigen` returns the **eigenvalues** and **eigenvectors** of the input matrix. We should specify the argument `symmetric = TRUE` if the input matrix is symmetric to reduce error in computation.
+
+We demonstrate how the calculations differ below.
+
+```{r}
+n <- 10
+A1 <- matrix(rnorm(n*n), nrow=n, ncol=n) #n by n matrix of standard normal samples
+A2 <- A1 + t(A1)
+eA <- eigen(A2, symmetric=TRUE) #find eigenvalues
+summary(abs(eA$values))
+```
+```{r}
+c(norm(eA$vectors %*% diag(eA$values) %*% t(eA$vectors) - A2, type='1'), 
+  norm(eA$vectors %*% t(eA$vectors) - diag(rep(1, n)), type='1')) #calculate divergence
+```
+
+And with `symmetric = TRUE`
+```{r}
+n <- 100
+A1 <- matrix(rnorm(n*n), nrow=n, ncol=n); A2 <- A1 + t(A1)
+eA <- eigen(A2, symmetric=TRUE) #find eigenvalues
+summary(abs(eA$values))
+```
+```{r}
+c(norm(eA$vectors %*% diag(eA$values) %*% t(eA$vectors) - A2, type='1'),
+  norm(eA$vectors %*% t(eA$vectors) - diag(rep(1, n)), type='1')) #calculate divergences
+```
+
+These are larger by orders of magnitude. We see that specifying that the matrix is symmetric reduces precision error.
+
+-----------------------------------------------------------------------------------
+# Sparse Matrices
+
+
+**Sparse matrices**, which consist mostly of zeros, are more of a challenge for a language to handle. It is not possible to store them in the same format as dense matrices due to memory constraints.
+`Matrix` stores dense matrices as `dgeMatrix` objects; `rankMatrix` will return the rank, and `rcond` returns the condition number; this quantifies the divergence between min and max eigenvalues.
+
+```{r}
+rankMatrix(A) #A is full rank
+rcond(A) #condition number
+```
+
+Sparse matrices are stored by default as `dgCMatrix` objects.
+
+We construct two sparse matrices and observe the memory difference:
+```{r}
+nrows <- 1000
+ncols <- 1000
+vals <- sample(x=c(0, 1, 2), prob=c(0.98, 0.01, 0.01), size=nrows*ncols, replace=TRUE) #sample 1000*1000, mostly 0s
+m1 <- matrix(vals, nrow=nrows, ncol=ncols) # dense matrix representation
+m2 <- Matrix(vals, nrow=nrows, ncol=ncols, sparse = TRUE) #sparse matrix representation
+m1[1:2, 1:10]
+c(object.size(m1), object.size(m2)) #compare memory useage
+```
+The dense matrix `m1` uses 3 times as much space.
+
+It is possible to coerce a `dgC` into a `dgT`, but not a `dgC` into a `dgR`
+```{r}
+object.size(as(m2, 'dgeMatrix')) # dgC` into a `dgT` possible
+object.size(as(m1, 'dgRMatrix')) # `dgC` into a `dgR` not possible
+```
+
+## Operations
+
+Matrix operations on these objects may change or conserve the type.
+
+Addition converts a `dcG` into a `dge`
+
+```{r}
+B <- as(matrix(c(1,0,0,0,2,0), nrow=3, ncol=2), 'dgCMatrix')
+B + 10
+```
+
+Mutliplication by a dense vector outputs a `dge` matrix
+```{r}
+B %*% c(1,1)
+```
+Multiplication by a sparse matrix, or taking a transpose, preserves sparsity.
+```{r}
+B %*% Matrix(c(1, 1), nrow=2, ncol=1, sparse=TRUE)
+t(B)
+```
+
+
+## Solving large linear systems
+
+Inverting sparse matrices is esepcially difficult, given the inverse of the matrix is not guaranteed to be sparse.
+We see this with a tridiagonal matrix
+```{r}
+n <- 100
+A1 <- bandSparse(n, k=c(0,1), diag=list(rep(1,n), rep(-0.2, n)), symm=T) #Tridiagonal
+A1inv <- solve(A1)
+c(object.size(A1), object.size(A1inv))
+
+sum(abs(A1inv) < 1e-100) #no entries near to 0
+```
+
+
+
+

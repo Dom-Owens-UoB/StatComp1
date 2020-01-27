@@ -1,0 +1,237 @@
+---
+title: "Numerical Optimisation"
+author: "Dom Owens"
+date: "19/11/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+How can we find the optimal value of a function from all feasible solutions? Without loss of generality, we consider minimisation for continuous problems.
+
+The standard form of the **constrained problem** is
+$$ \min f(x) $$
+$$ s.t. g_i(x) \leq 0, i=1,...,m $$ 
+$$   h_j(x) = 0, j=1,...,p $$
+though we will focus mainly on unconstrained minimisation.
+
+## Optimisation in One Dimension
+
+Consider this function
+```{r}
+f <- function(x) cos(x)*sin(2*x)  + sin(3*x)
+curve(f, from=0, to=4*pi)
+```
+
+How can we find the minimum?
+We could solve this minimisation with base R's `optimize`. This only works for one dimensional problems.
+
+```{r}
+optimize(f, interval=c(0,4*pi))
+```
+
+This finds a local, not nessecarily a global, minimimum using **golden section search**. 
+One benefit of this is that no derivative needs to be calculated, so works on continous but non-differentiable functions such as `abs`.
+```{r}
+#library(soobench)
+#fw <- weierstrass_function(1)
+#fw <- function(x){
+#  n <- 10
+#  a <- 0.9
+#  b <- 7
+#  y <- 1:n
+#  for (i in 1:n) {
+#    y[i] <- a^(i-1)*cos(b^(i-1) *pi * x)
+#  }
+#  sum(y)
+#}
+#y <- 
+#curve(fw, -2,2)
+curve(abs, from = -2, to = 2)
+optimize(abs, interval=c(-2,2)) #find min
+```
+
+
+## Newton's Method
+
+Based on the Taylor expansion, we obtain the iterative formula 
+$$ x \xleftarrow{} x - \frac{f'(x)}{f''(x)} $$
+This allows us to find optima for $f$ using knowledge on the gradient and 
+
+```{r}
+f_sym <- expression(cos(x)*sin(2*x)  + sin(3*x)) #define f
+f1_sym <- D(f_sym, 'x') #f'
+f1 <- function(x) eval(f1_sym) #f'(x)
+f2_sym <- D(f1_sym, 'x') #f''
+f2 <- function(x) eval(f2_sym) #f''(x)
+x <- 2 #x_0
+for (i in 1:6) {
+  x <- x - f1(x) / f2(x); cat(x, '\n') #iterate
+}
+```
+This converges in 4 steps to a maximum; this highlights that Newton's Method does not discriminate between minima and maxima.
+
+## Optimisation in Multiple Dimensions
+
+How can we approach problems for $d>1$? 
+
+We delineate the approaches to optimisation into three categories:
+
+- **Simplex methods ** using only function values
+- **Gradient methods ** using the first derivatives (gradient)
+- **Newton-type methods ** using the second derivatives (Hessian) or an approximation
+
+These are largely implemented by `nlm` or `optim`.
+
+### Simplex Methods
+Exemplified by the Nelder-Mead method of direct search. Morphs a $n+1$ vertex in $n$-dimensional space based on the function values at each vertex.
+This is slow, converges to local minima only, and can converge to non-stationary points.
+
+### Gradient Methods
+We iterate on 
+$$ \mathbf{x} \xleftarrow{} \mathbf{x} - t\mathbf{d} $$
+
+where $\mathbf{d}$ is a *descent direction*, and $t$ is a step size (chosen with e.g. line search).
+This is slow, so isn't used by the canonical optimisation functions, but is simple.
+The **Conjugate Gradient ** method selects descent directions which are conjugate to the previous direction, avoiding zigzag behaviour. Tends to outperform gradient descent, but not Newton-type methods.
+
+### Newton-type Methods
+We iterate on 
+$$ \mathbf{x} \xleftarrow{} \mathbf{x} - [H(f(\boldsymbol{x}))]^{-1} \nabla f(\mathbf{x}) $$
+
+We should consider that finding $H$, the Hessian matrix, in high dimensions is hard, and inversion is expensive. **Quasi-Newton** methods replace this with a reasonable approximation.
+**BFGS** is the most commonly used method in R, which avoids calculating any inverses but does require storing large dense matrices $B_k$ which approximate $H$. The **L-BFGS** algorithm overcomes storage problems by using a low-dimensional representation of $B_k$.
+
+
+### Simulated Annealing
+
+The three previous methods discussed were deterministic methods. **Simulated Annealing** works like the Metropolis-Hastings algorithm, jumping around the function between states according to acceptance probabilities until a minimum is reached. This finds the global minimum, but operates slowly.
+
+
+-----------------------------------------------------------
+# Optimisation Functions in R
+
+R has useful utilities for optimising functions.
+We initiate a 2D function $f(x_1,x_2) =  cos(x_1)*sin(2*x_2)  + sin(3*x_1*x_2) + (x_1-x_2)^3 $ for demonstrating some methods.
+
+```{r}
+#install.packages("pracma")
+library(pracma) # for meshgrid function
+f <- function(x1, x2) cos(x1)*sin(2*x2)  + sin(3*x1*x2) + (x1-x2)^3 #define function to optimise
+meshgrid(seq(-2, 2, length=5)) #output coordinate grid
+x <- seq(-2, 2, length=101) #store finer grid
+grid_XY <- meshgrid(x)
+z <- matrix(mapply(f, grid_XY$X, grid_XY$Y), nrow=101) #apply function
+min(z) #print minimum
+contour(x, x, z) #show contour plot
+```
+
+
+## `nlm`
+
+For Newton-type methods, we require the gradient and Hessian matrix.
+
+```{r}
+f1 <- deriv(expression(cos(x1)*sin(2*x2)  + sin(3*x1*x2) + (x1-x2)^3), namevec = c('x1', 'x2'), function.arg=T, hessian=T) #calculate first and second derivatives
+f1(0,0) #evaluate at origin
+```
+We try `nlm` at two different initial conditions:
+```{r}
+nlm(function(x) f1(x[1], x[2]), c(0,0)) #start nlm at (0,0)
+```
+
+```{r}
+nlm(function(x) f1(x[1], x[2]), c(10, 10),  stepmax = 1000) #start at (10,10)
+```
+
+These find different minima.
+
+If we don't specify the gradient or Hessian to `nlm`, numerical approximations are used. This impacts accuracy.
+
+```{r}
+nlm(function(x) f(x[1], x[2]), c(10,10)) #start nlm at (0,0) without gradient or Hessian
+```
+
+
+## `optim`
+
+The canonical optimisation function in R, `optim`, uses Nelder-Mead by default.
+```{r}
+optim(c(0,0), function(x) f(x[1], x[2])) #run optim using Nelder-Mead, starting at origin
+```
+We can alternatively use e.g. conjugate gradients, BFGS, and L-BFGS. In general, BFGS works best:
+```{r}
+optim(c(0, 0), function(x) f(x[1], x[2]), method="BFGS") #run optim using BFGS algorithm, starting at origin
+```
+
+Simulated annealing will find the global minimum, but perform poorly. Indeed, we should control the maximum number of iterations.
+```{r}
+optim(c(0, 0), function(x) f(x[1], x[2]), method="SANN", control=list(maxit=3000)) #run soptim with simulated annealing, starting at origin, using at most 3000 iterations
+```
+
+# Nonlinear Least Squares
+
+For a statistical modelling problem, we often minimise residuals (via the **residue function**)
+$$r_i(\beta) = y_i - f(x_i, \beta)  $$
+where $f$ is a non-linear function.
+
+We wish to minimise the **sum of squares**
+$$  \min_{\beta} \sum_1^m r_i^2 $$
+A specific subclass of algorithms exists for this form of problem. We discuss two popular methods: **The Gauss-Newton Method** and **The Levenberg-Marquardt Algorithm**.
+
+ **The Gauss-Newton Method**  adapts Newton's general method by approximating the Hessian of the objective function with the Jacobian matrix $J_r$ of the residue function. This gives increments
+ $$  \beta \xleftarrow{} \beta - (J_r^T J_r)^{-1} J_r^T r(\beta)$$
+ Convergence is not guaranteed, but performance is empirically strong. When $J_r$ is singular, this may not work.
+ 
+ **The Levenberg-Marquardt Algorithm** addresses this by damping. Using the approximation $$ 2(J_r^T J_r + \lambda I) $$ with the damping parameter $\lambda$, we iterate
+ $$  \beta \xleftarrow{} \beta - (J_r^T J_r + \lambda I)^{-1} J_r^T r(\beta)$$ 
+
+ For $\lambda =0$ this is the Gauss-Markov method; as $\lambda \xrightarrow{} \infty$ this reaches the steepest-descent gradient method. 
+ We hence wish to reduce $\lambda$ as much as possible without introducing instability.
+ 
+ **Stochastic Gradient Descent** works online, so can handle big data or time-ordered data. This iterates
+ $$  \beta \xleftarrow{} \beta - \gamma r_i \nabla r_i(\beta)$$
+ where $i$ is deterministically or randomly selected.
+ 
+ We demonstrate the two methods below.
+ 
+```{r}
+ydat <- c(5.308, 7.24, 9.638, 12.866, 17.069, 23.192, 31.443, 38.558, 50.156, 62.948, 75.995, 91.972) #set response
+tdat <- seq_along(ydat) #1:12
+my_data <- data.frame(y=ydat, t=tdat) #store as frame
+start1 <- c(b1=1, b2=1, b3=1) #start from (1,1,1)
+my_model <- y ~ b1/(1+b2*exp(-b3*t)) #specify nonlinear model
+try(nls(my_model, start=start1, data=my_data)) #incur gradient error
+```
+```{r}
+library(minpack.lm)
+out_lm <- nlsLM(my_model, start=start1, data=my_data) #fit model using Lev.-Marq. method
+out_lm
+```
+ 
+```{r}
+plot(tdat, ydat, pch=18, xlab='t', ylab='y', col='red') #view performance
+lines(tdat, out_lm$m$fitted(), pch=1, col='blue', type='b', lty=2)
+legend(1, 95, legend=c('data', 'fitted model'), col=c('red', 'blue'), pch=c(18,1))
+```
+
+GM fails due to the gradient, but LM handles the singular gradient and works well.
+
+We define the residue function and compare methods.
+```{r}
+f <- function(b, mydata) sum((mydata$y-b[1]/(1+b[2]*exp(-b[3]*mydata$t)))^2) #specify residue
+nlm(f, mydata=my_data, p=start1) #run nlm
+```
+```{r}
+optim(par=start1, fn=f, mydata=my_data) #run optim/Nelder-Mead
+```
+```{r}
+optim(par=start1, fn=f, mydata=my_data, method="CG") #run optim/Conjugate Gradient 
+```
+```{r}
+optim(par=start1, fn=f, mydata=my_data, method="BFGS") #run optim/BFGS
+```
+```{r}
+optim(par=start1, fn=f, mydata=my_data, method="L-BFGS-B") #run optim/ L-BFGS
+```
+

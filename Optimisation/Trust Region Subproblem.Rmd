@@ -1,0 +1,86 @@
+---
+title: "Trust Region Subproblem"
+author: "Dom Owens"
+date: "17/10/2019"
+output: html_document
+---
+
+Implementation of the Trust Region Subproblem using the necessary and sufficient conditions given in Beck p.227
+
+$$ \text{(TRS) } min \{ f(\mathbf{x}) = \mathbf{x}^T A \mathbf{x} + 2\mathbf{b^Tx} + c : ||\mathbf{x}||^2 \leq \alpha   \}  $$
+
+$ \mathbf{x}^* $ optimal $\iff$ there exists $\lambda^* \leq 0$ such that
+
+$$ (A + \lambda^* I)\mathbf{x}^* = -\mathbf{b}\\
+  ||\mathbf{x}^*|| \leq \alpha \\
+  \lambda^* (|| \mathbf{x}^*||^2 - \alpha) = 0 \\
+  A + \lambda^*I \geq 0 $$ 
+
+```{r}
+bisect <- function(f,lb,ub,eps){
+  if (f(lb) * f(ub) > 0){return("error: postive product")}
+  else{
+    iter <- 0
+    while (ub-lb > eps) {
+      z <- (lb+ub)/2
+      iter <- iter + 1
+      if(f(lb) *f(z) > 0){lb <- z} else {ub <- z}
+      print( c(iter,z) )
+    }
+  }
+}
+```
+
+
+```{r}
+#INPUT
+#A ................... an men matrix
+#b ................... an n-length vector
+#alpha ............... positive scalar
+#OUTPUT
+# x_trs
+#
+#an optimal solution of
+#min{x' *A*x+2b' *X: I !xi I "2<=alpha}
+library("matrixcalc")
+
+trs <- function(A,b,alpha){
+  n <- unlist(length(b))
+  lambda <- 1
+  fn <- function(lambda){ norm( as.matrix(solve(A + diag(lambda,n,n), b) ))^2 - alpha }
+  
+  #pos def A case
+  if( is.positive.definite(A)){
+    L <- chol(A)
+    x_naive <- solve(t(L), solve(L,b))
+    if(norm(x_naive)^2 <= alpha){
+      x_trs <- x_naive  
+    } else {
+      u <- 1
+      while (fn(u)>0) {
+        u <- 2*u
+      }
+      lambda <- bisect(fn, 0, u, 1e-7)
+      x_trs <- -solve(A + diag(lambda,n,n), b)
+    }
+  }
+    #not pos def A case
+  else{
+    u <- max(1, -min(eigen(A)$values)+1e-7 ) 
+    while (fn(u)>0) {
+      u <- 2*u      
+    }
+    lambda <- bisect(fn, -min(eigen(A)$values)+1e-7, u, 1e-7)
+    x_trs <- -solve(A + diag(lambda,n,n), b)
+  }
+}
+```
+
+
+```{r}
+#specify problem
+A <- matrix(c(1,2,3,2,1,4,3,4,3), 3,3)
+b <- c(0.5, 1, -0.5)
+x_trs <- trs(A,b,1)
+```
+

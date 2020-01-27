@@ -1,0 +1,74 @@
+---
+title: "Constrained LS"
+author: "Dom Owens"
+date: "16/10/2019"
+output: html_document
+---
+
+Let's demonstrate uses of the KKT conditions for solving optimisation problems.
+We consider the constrained least squares problem:
+$$min ||\mathbf{Ax - b}||^2 \\ s.t. ||\mathbf{x}||^2 \leq \alpha $$
+Solve Lagrangaian $$ L(\mathbf{x}, \lambda) =  ||\mathbf{Ax - b}||^2 + \lambda(||\mathbf{x}||^2-\alpha) $$
+
+If the 2-norm of the least squares solution is less than or equal to alpha, the least squares solution is a minimum; else the solution is the ridge solution $(A^TA + \lambda I)^{-1} A^T \mathbf{b}$.
+
+We require the following bisection function to find lambda: 
+```{r}
+#INPUT
+#f . . . . . . . . . . . . . . . . . . . a scalar function
+#lb . . . . . . . . . . . . . ..... the initial lower bound
+#ub . . . . . . . . . . . . . . . . . . the initial upper bound
+#eps . . . . . . . . . . . . . . . . . tolerance parameter
+#OUTPUT
+#z . . . . . . . . . . . . . . . . . . a root of the equation f(x)=O
+bisect <- function(f,lb,ub,eps){
+  if (f(lb) * f(ub) > 0){return("error: postive product")}
+  else{
+    iter <- 0
+    while (ub-lb > eps) {
+      z <- (lb+ub)/2
+      iter <- iter + 1
+      if(f(lb) *f(z) > 0){lb <- z} else {ub <- z}
+      print( c(iter,z) )
+    }
+  }
+}
+
+#run with f = x^2 -2 = 0
+fn <- function(x){x^2 -2}
+bisect(fn, 1, 2, 1e-4)
+```
+
+Now for the CLS problem. Here, $f(0)>0$ so we find a point $u>0$ s.t. $f(u)<0$. We can find this by iteratively doubling $u$ until $f(u) < 0$.
+
+```{r}
+#INPUT
+#A ................... an mxn matrix
+#b ................... an m-length vector
+#alpha ............... positive scalar
+#OUTPUT
+# x_cls ............ an optimal solution of
+#min{ I IA*x-bl I: I lxl I "2<=alpha}
+x_cls <- function(A,b,alpha){
+  n <- dim(A)[2] #isolate width
+  x_ls <- solve(A, b) #Ax=b
+  if(norm(as.matrix(x_ls))^2 <= alpha){x_cls <- x_ls} else{ #set to ls soln, or solve lagrangian
+    fn <- function(lambda){norm( solve(t(A)%*%A + diag(lambda,n,n))%*% t(A)%*%b )^2 - alpha }
+    u <-1
+    while (fn(u) > 0) {
+     u <- 2*u #iterate for u
+    }
+    lambda <- bisect(fn, 0, u, 1e-7) #find lambda with bisection
+    x_cls <- solve(t(A)%*%A + diag(lambda,n,n))%*% t(A)%*%b  #set as  regularised soln
+  }
+}
+
+```
+Run on the example
+
+```{r}
+A <- matrix( c(1,2,3,1),2,2)
+b <- c(2,3)
+x_cls(A,b,0.5)
+```
+
